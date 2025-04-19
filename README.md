@@ -84,17 +84,8 @@ python bot.py
 
 ## ⚠️ Ignored Files
 
-This repo includes a strict `.gitignore` to avoid pushing sensitive and personal files:
+This repository uses a strict `.gitignore` to avoid pushing sensitive and personal files.
 
-```gitignore
-.env
-tweet_history.json
-loner_bully.py
-sounds/
-cevap.mp3
-yalnız.mp3
-hosgeldin.mp3
-```
 
 ---
 
@@ -106,7 +97,7 @@ hosgeldin.mp3
 
 ## 📫 Contact
 
-- 🧑 GitHub: [Spellz](https://github.com/Spellz)
+- 🧑 GitHub: [Speellz](https://github.com/Speellz)
 - 🔗 LinkedIn: [Cenk Kağan Çakır](https://www.linkedin.com/in/cenkkaancakir)
 
 ---
