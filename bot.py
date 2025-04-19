@@ -1,6 +1,7 @@
 import os
 import discord
 import edge_tts
+import asyncio
 from discord.ext import commands
 import yt_dlp
 from discord import app_commands
