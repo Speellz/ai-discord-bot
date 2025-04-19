@@ -12,7 +12,14 @@ class LonerBully(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.user_alone_since = {}
+        self.messages = self.load_messages("loner_messages.txt")
         self.check_lonely_users.start()
+
+    def load_messages(self, path):
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return [line.strip() for line in f if line.strip()]
+        return ["Git bi arkadaş bul."]
 
     @tasks.loop(seconds=30)
     async def check_lonely_users(self):
@@ -64,13 +71,7 @@ class LonerBully(commands.Cog):
                                                                                        self.bot.loop))
 
         else:
-            mesajlar = [
-                "Amına koyim ne yapıyorsun tek başına",
-                "Napıyorsun lan burada amına koyduğumun yalnızı",
-                "Kimse gelmeyecek amına koyim git birini çağır",
-                "Napıyosun lan burda ezik",
-            ]
-            mesaj = random.choice(mesajlar)
+            mesaj = random.choice(self.messages)
             dosya_adi = "data/sounds/yalniz.mp3"
 
             tts = edge_tts.Communicate(mesaj, voice="tr-TR-AhmetNeural")
