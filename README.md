@@ -3,9 +3,8 @@
   A powerful, AI-integrated Discord bot written in Python.  
   Includes music streaming, Gemini AI conversation, real-time Twitter scraping, and voice features.  
   <br><br>
-  🐶 Inspired by <strong>TACI</strong>, the talking dog character from <em>Sihirli Annem</em> — a beloved Turkish TV show from our childhood.  
-  Just like the original TACI, this bot has something to say about everything — with a touch of chaos, sass, and lots of voice!
-<img src="./taci.png" alt="TACI the dog from Sihirli Annem" width="250"/>
+  🐶 Inspired by <strong>TACI</strong>, the talking dog character from <em>Sihirli Annem</em> — a beloved Turkish TV show from our childhood.
+  <img src="./taci.png" alt="TACI the dog from Sihirli Annem" width="250"/>
 </p>
 
 
