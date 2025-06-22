@@ -31,7 +31,12 @@ class Music(commands.Cog):
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn'
         }
-        source = discord.FFmpegPCMAudio(url, **ffmpeg_options)
+        try:
+            source = discord.FFmpegPCMAudio(url, **ffmpeg_options)
+        except Exception as e:
+            print(f"FFmpeg error: {e}")
+            await interaction.followup.send("Ses oynatma hatası. Lütfen ffmpeg kurulu mu kontrol et.")
+            return
 
         def after(_):
             asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
@@ -62,13 +67,21 @@ class Music(commands.Cog):
         vc = await self.ensure_voice(interaction)
         if not vc:
             return
-        ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch:{query}" if not query.startswith("http") else query, download=False)
-            if 'entries' in info:
-                info = info['entries'][0]
-            url = info['url']
-            title = info['title']
+        try:
+            ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(
+                    f"ytsearch:{query}" if not query.startswith("http") else query,
+                    download=False,
+                )
+                if 'entries' in info:
+                    info = info['entries'][0]
+                url = info['url']
+                title = info['title']
+        except Exception as e:
+            print(f"yt_dlp error for {query}: {e}")
+            await interaction.followup.send("Şarkı bulunamadı veya indirilemedi.")
+            return
         if vc.is_playing() or vc.is_paused():
             self.queue.append((url, title))
             await interaction.followup.send(f"Sıraya eklendi: {title}")
