@@ -24,25 +24,34 @@ class AIChat(commands.Cog):
 
     @app_commands.command(description="Yapay zeka ile sohbet")
     async def ai(self, interaction: discord.Interaction, *, mesaj: str):
+        print(f"/ai invoked by {interaction.user} with message: {mesaj}")
         await interaction.response.defer()
         reply = self.gemini_reply(mesaj)
         await interaction.followup.send(f"🐶 **TACİ:** {reply}")
 
     @app_commands.command(description="Sesli yanıt")
     async def ask(self, interaction: discord.Interaction, *, mesaj: str):
+        print(f"/ask invoked by {interaction.user} with message: {mesaj}")
         await interaction.response.defer()
         if not (interaction.user.voice and interaction.user.voice.channel):
+            print("User not in a voice channel")
             await interaction.followup.send("Önce bir ses kanalına gir!")
             return
         vc = interaction.guild.voice_client
         if not vc:
+            print("Connecting to voice channel")
             vc = await interaction.user.voice.channel.connect()
+        else:
+            print("Using existing voice connection")
         reply = self.gemini_reply(mesaj)
+        print(f"Gemini reply: {reply}")
         file_path = await text_to_mp3(reply, "ai_reply.mp3")
+        print(f"TTS file created at {file_path}")
         source = discord.FFmpegPCMAudio(file_path)
         async with self.bot.get_cog("Music").audio_lock:
             vc.play(source)
         await interaction.followup.send("Sesli yanıt veriliyor")
+        print("ask command finished")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AIChat(bot))
