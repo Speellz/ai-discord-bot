@@ -57,6 +57,7 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Şarkı çalar")
     async def play(self, interaction: discord.Interaction, *, query: str):
+        print(f"/play invoked by {interaction.user} with query: {query}")
         await interaction.response.defer()
         vc = await self.ensure_voice(interaction)
         if not vc:
@@ -76,6 +77,7 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Şarkıyı atlar")
     async def skip(self, interaction: discord.Interaction):
+        print(f"/skip invoked by {interaction.user}")
         await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc and vc.is_playing():
@@ -86,6 +88,7 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Şarkıyı duraklatır")
     async def pause(self, interaction: discord.Interaction):
+        print(f"/pause invoked by {interaction.user}")
         await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc and vc.is_playing():
@@ -96,6 +99,7 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Duraklatılan şarkıyı sürdürür")
     async def resume(self, interaction: discord.Interaction):
+        print(f"/resume invoked by {interaction.user}")
         await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc and vc.is_paused():
@@ -106,12 +110,14 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Müzik kuyruğunu gösterir")
     async def queue(self, interaction: discord.Interaction):
+        print(f"/queue invoked by {interaction.user}")
         lines = [f"{i+1}. {title}" for i, (_, title) in enumerate(self.queue)]
         text = "\n".join(lines) if lines else "Kuyruk boş"
         await interaction.response.send_message(text)
 
     @app_commands.command(description="Kuyruktan şarkı kaldırır")
     async def remove(self, interaction: discord.Interaction, index: int):
+        print(f"/remove invoked by {interaction.user} index: {index}")
         if 0 < index <= len(self.queue):
             _, title = self.queue.pop(index-1)
             await interaction.response.send_message(f"Kaldırıldı: {title}")
@@ -120,6 +126,7 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Botu ses kanalına sokar")
     async def join(self, interaction: discord.Interaction):
+        print(f"/join invoked by {interaction.user}")
         await interaction.response.defer()
         if interaction.user.voice and interaction.user.voice.channel:
             channel = interaction.user.voice.channel
@@ -131,6 +138,7 @@ class Music(commands.Cog):
 
     @app_commands.command(description="Botu ses kanalından çıkarır")
     async def leave(self, interaction: discord.Interaction):
+        print(f"/leave invoked by {interaction.user}")
         await interaction.response.defer()
         if interaction.guild.voice_client:
             await interaction.guild.voice_client.disconnect()
@@ -141,6 +149,7 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        print(f"Reaction {payload.emoji} added by {payload.user_id}")
         if payload.user_id == self.bot.user.id:
             return
         if payload.message_id not in self.music_messages:
