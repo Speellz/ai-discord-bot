@@ -115,11 +115,8 @@ Can be used multiple times and inside other configuration files
 --plugin-dirs \f[I]PATH\f[R]
 Path to an additional directory to search for plugins.
 This option can be used multiple times to add multiple directories.
-Use \[dq]default\[dq] to search the default plugin directories (default)
-.TP
---no-plugin-dirs
-Clear plugin directories to search, including defaults and those
-provided by previous --plugin-dirs
+Note that this currently only works for extractor plugins; postprocessor
+plugins can only be loaded from the default plugin directories
 .TP
 --flat-playlist
 Do not extract a playlist\[aq]s URL result entries; some entry metadata
@@ -2633,10 +2630,11 @@ subtitles (https://github.com/yt-dlp/yt-dlp/issues/4090#issuecomment-1158102032)
 respectively
 .IP \[bu] 2
 \f[V]player_client\f[R]: Clients to extract video data from.
-The currently available clients are \f[V]web\f[R], \f[V]web_safari\f[R],
-\f[V]web_embedded\f[R], \f[V]web_music\f[R], \f[V]web_creator\f[R],
-\f[V]mweb\f[R], \f[V]ios\f[R], \f[V]android\f[R], \f[V]android_vr\f[R],
-\f[V]tv\f[R] and \f[V]tv_embedded\f[R].
+The main clients are \f[V]web\f[R], \f[V]ios\f[R] and \f[V]android\f[R],
+with variants \f[V]_music\f[R] and \f[V]_creator\f[R] (e.g.
+\f[V]ios_creator\f[R]); and \f[V]mweb\f[R], \f[V]android_vr\f[R],
+\f[V]web_safari\f[R], \f[V]web_embedded\f[R], \f[V]tv\f[R] and
+\f[V]tv_embedded\f[R] with no variants.
 By default, \f[V]tv,ios,web\f[R] is used, or \f[V]tv,web\f[R] is used
 when authenticating with cookies.
 The \f[V]web_music\f[R] client is added for \f[V]music.youtube.com\f[R]
@@ -2645,8 +2643,8 @@ The \f[V]tv_embedded\f[R] and \f[V]web_creator\f[R] clients are added
 for age-restricted videos if account age-verification is required.
 Some clients, such as \f[V]web\f[R] and \f[V]web_music\f[R], require a
 \f[V]po_token\f[R] for their formats to be downloadable.
-Some clients, such as \f[V]web_creator\f[R], will only work with
-authentication.
+Some clients, such as the \f[V]_creator\f[R] variants, will only work
+with authentication.
 Not all clients support authentication via cookies.
 You can use \f[V]default\f[R] for the default clients, or you can use
 \f[V]all\f[R] for all clients (not recommended).
@@ -2719,15 +2717,6 @@ Comma seperated list of PO Tokens in the format
 \f[V]youtube:po_token=web.gvs+XXX,web.player=XXX,web_safari.gvs+YYY\f[R].
 Context can be either \f[V]gvs\f[R] (Google Video Server URLs) or
 \f[V]player\f[R] (Innertube player request)
-.IP \[bu] 2
-\f[V]player_js_variant\f[R]: The player javascript variant to use for
-signature and nsig deciphering.
-The known variants are: \f[V]main\f[R], \f[V]tce\f[R], \f[V]tv\f[R],
-\f[V]tv_es6\f[R], \f[V]phone\f[R], \f[V]tablet\f[R].
-Only \f[V]main\f[R] is recommended as a possible workaround; the others
-are for debugging purposes.
-The default is to use what is prescribed by the site, and can be
-selected with \f[V]actual\f[R]
 .SS youtubetab (YouTube playlists, channels, feeds, etc.)
 .IP \[bu] 2
 \f[V]skip\f[R]: One or more of \f[V]webpage\f[R] (skip initial webpage
@@ -2810,11 +2799,6 @@ GameJolt\[aq]s side)
 .IP \[bu] 2
 \f[V]dr\f[R]: dynamic range to ignore - one or more of \f[V]sdr\f[R],
 \f[V]hdr10\f[R], \f[V]dv\f[R]
-.SS instagram
-.IP \[bu] 2
-\f[V]app_id\f[R]: The value of the \f[V]X-IG-App-ID\f[R] header used for
-API requests.
-Default is the web app ID, \f[V]936619743392459\f[R]
 .SS niconicochannelplus
 .IP \[bu] 2
 \f[V]max_comments\f[R]: Maximum number of comments to extract - default
@@ -2933,10 +2917,6 @@ older videos that still provide legacy formats
 \f[V]asc\f[R] (ascending, oldest first) or \f[V]desc\f[R] (descending,
 newest first).
 Default is \f[V]asc\f[R]
-.SS tver
-.IP \[bu] 2
-\f[V]backend\f[R]: Backend API to use for extraction - one of
-\f[V]streaks\f[R] (default) or \f[V]brightcove\f[R] (deprecated)
 .PP
 \f[B]Note\f[R]: These options may be changed/removed in the future
 without concern for backward compatibility
@@ -3847,7 +3827,10 @@ Unavailable videos are also listed for YouTube playlists.
 Use \f[V]--compat-options no-youtube-unavailable-videos\f[R] to remove
 this
 .IP \[bu] 2
-The upload dates extracted from YouTube are in UTC.
+The upload dates extracted from YouTube are in UTC when
+available (https://github.com/yt-dlp/yt-dlp/blob/89e4d86171c7b7c997c77d4714542e0383bf0db0/yt_dlp/extractor/youtube.py#L3898-L3900).
+Use \f[V]--compat-options no-youtube-prefer-utc-upload-date\f[R] to
+prefer the non-UTC upload date.
 .IP \[bu] 2
 If \f[V]ffmpeg\f[R] is used as the downloader, the downloading and
 merging of formats happen in a single step when possible.
@@ -3928,15 +3911,13 @@ this!\f[R])
 \f[V]--compat-options all,-no-live-chat,-no-youtube-channel-redirect,-playlist-match-filter,-manifest-filesize-approx,-allow-unsafe-ext,-prefer-vp9-sort\f[R]
 .IP \[bu] 2
 \f[V]--compat-options 2021\f[R]: Same as
-\f[V]--compat-options 2022,no-certifi,filename-sanitization\f[R]
+\f[V]--compat-options 2022,no-certifi,filename-sanitization,no-youtube-prefer-utc-upload-date\f[R]
 .IP \[bu] 2
 \f[V]--compat-options 2022\f[R]: Same as
 \f[V]--compat-options 2023,playlist-match-filter,no-external-downloader-progress,prefer-legacy-http-handler,manifest-filesize-approx\f[R]
 .IP \[bu] 2
 \f[V]--compat-options 2023\f[R]: Same as
-\f[V]--compat-options 2024,prefer-vp9-sort\f[R]
-.IP \[bu] 2
-\f[V]--compat-options 2024\f[R]: Currently does nothing.
+\f[V]--compat-options prefer-vp9-sort\f[R].
 Use this to enable all future compat options
 .PP
 The following compat options restore vulnerable behavior from before

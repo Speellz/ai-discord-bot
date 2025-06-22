@@ -405,11 +405,10 @@ General Options:
     --plugin-dirs PATH              Path to an additional directory to search
                                     for plugins. This option can be used
                                     multiple times to add multiple directories.
-                                    Use "default" to search the default plugin
-                                    directories (default)
-    --no-plugin-dirs                Clear plugin directories to search,
-                                    including defaults and those provided by
-                                    previous --plugin-dirs
+                                    Note that this currently only works for
+                                    extractor plugins; postprocessor plugins can
+                                    only be loaded from the default plugin
+                                    directories
     --flat-playlist                 Do not extract a playlist's URL result
                                     entries; some entry metadata may be missing
                                     and downloading may be bypassed
@@ -2182,20 +2181,21 @@ youtube
 -   skip: One or more of hls, dash or translated_subs to skip extraction
     of the m3u8 manifests, dash manifests and auto-translated subtitles
     respectively
--   player_client: Clients to extract video data from. The currently
-    available clients are web, web_safari, web_embedded, web_music,
-    web_creator, mweb, ios, android, android_vr, tv and tv_embedded. By
-    default, tv,ios,web is used, or tv,web is used when authenticating
-    with cookies. The web_music client is added for music.youtube.com
-    URLs when logged-in cookies are used. The tv_embedded and
-    web_creator clients are added for age-restricted videos if account
-    age-verification is required. Some clients, such as web and
-    web_music, require a po_token for their formats to be downloadable.
-    Some clients, such as web_creator, will only work with
-    authentication. Not all clients support authentication via cookies.
-    You can use default for the default clients, or you can use all for
-    all clients (not recommended). You can prefix a client with - to
-    exclude it, e.g. youtube:player_client=default,-ios
+-   player_client: Clients to extract video data from. The main clients
+    are web, ios and android, with variants _music and _creator (e.g.
+    ios_creator); and mweb, android_vr, web_safari, web_embedded, tv and
+    tv_embedded with no variants. By default, tv,ios,web is used, or
+    tv,web is used when authenticating with cookies. The web_music
+    client is added for music.youtube.com URLs when logged-in cookies
+    are used. The tv_embedded and web_creator clients are added for
+    age-restricted videos if account age-verification is required. Some
+    clients, such as web and web_music, require a po_token for their
+    formats to be downloadable. Some clients, such as the _creator
+    variants, will only work with authentication. Not all clients
+    support authentication via cookies. You can use default for the
+    default clients, or you can use all for all clients (not
+    recommended). You can prefix a client with - to exclude it, e.g.
+    youtube:player_client=default,-ios
 -   player_skip: Skip some network requests that are generally needed
     for robust extraction. One or more of configs (skip client configs),
     webpage (skip initial webpage), js (skip js player). While these
@@ -2238,11 +2238,6 @@ youtube
     youtube:po_token=web.gvs+XXX,web.player=XXX,web_safari.gvs+YYY.
     Context can be either gvs (Google Video Server URLs) or player
     (Innertube player request)
--   player_js_variant: The player javascript variant to use for
-    signature and nsig deciphering. The known variants are: main, tce,
-    tv, tv_es6, phone, tablet. Only main is recommended as a possible
-    workaround; the others are for debugging purposes. The default is to
-    use what is prescribed by the site, and can be selected with actual
 
 youtubetab (YouTube playlists, channels, feeds, etc.)
 
@@ -2309,11 +2304,6 @@ hotstar
 -   res: resolution to ignore - one or more of sd, hd, fhd
 -   vcodec: vcodec to ignore - one or more of h264, h265, dvh265
 -   dr: dynamic range to ignore - one or more of sdr, hdr10, dv
-
-instagram
-
--   app_id: The value of the X-IG-App-ID header used for API requests.
-    Default is the web app ID, 936619743392459
 
 niconicochannelplus
 
@@ -2416,11 +2406,6 @@ sonylivseries
 -   sort_order: Episode sort order for series extraction - one of asc
     (ascending, oldest first) or desc (descending, newest first).
     Default is asc
-
-tver
-
--   backend: Backend API to use for extraction - one of streaks
-    (default) or brightcove (deprecated)
 
 Note: These options may be changed/removed in the future without concern
 for backward compatibility
@@ -2883,7 +2868,9 @@ and youtube-dlc:
     redirections
 -   Unavailable videos are also listed for YouTube playlists. Use
     --compat-options no-youtube-unavailable-videos to remove this
--   The upload dates extracted from YouTube are in UTC.
+-   The upload dates extracted from YouTube are in UTC when available.
+    Use --compat-options no-youtube-prefer-utc-upload-date to prefer the
+    non-UTC upload date.
 -   If ffmpeg is used as the downloader, the downloading and merging of
     formats happen in a single step when possible. Use
     --compat-options no-direct-merge to revert this
@@ -2935,12 +2922,11 @@ For ease of use, a few more compat options are available:
 -   --compat-options youtube-dlc: Same as
     --compat-options all,-no-live-chat,-no-youtube-channel-redirect,-playlist-match-filter,-manifest-filesize-approx,-allow-unsafe-ext,-prefer-vp9-sort
 -   --compat-options 2021: Same as
-    --compat-options 2022,no-certifi,filename-sanitization
+    --compat-options 2022,no-certifi,filename-sanitization,no-youtube-prefer-utc-upload-date
 -   --compat-options 2022: Same as
     --compat-options 2023,playlist-match-filter,no-external-downloader-progress,prefer-legacy-http-handler,manifest-filesize-approx
--   --compat-options 2023: Same as --compat-options 2024,prefer-vp9-sort
--   --compat-options 2024: Currently does nothing. Use this to enable
-    all future compat options
+-   --compat-options 2023: Same as --compat-options prefer-vp9-sort. Use
+    this to enable all future compat options
 
 The following compat options restore vulnerable behavior from before
 security patches:
