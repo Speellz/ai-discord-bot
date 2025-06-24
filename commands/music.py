@@ -1,183 +1,231 @@
-import os
 import discord
-from discord.ext import commands
-import yt_dlp
 import asyncio
-
+import yt_dlp
+import os
+import uuid
+import shutil
+from discord.ext import commands, tasks
+from discord import app_commands
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.queue = []  # Kuyruk
-        self.currently_playing = None  # Şu an çalan şarkı
-        self.default_sound = "data/sounds/havhav.mp3"  # Varsayılan ses
-        self.user_sounds = {}  # Kullanıcıya özel giriş sesleri
+        self.queue = []
+        self.music_messages = {}
+        self.currently_playing = None
+        self.previous_tracks = []
+        self.disconnect_timer = {}  # guild_id -> asyncio.Task
+        self.last_channel_id = {}   # guild_id -> last interaction channel
 
-    @commands.command()
-    async def join(self, ctx):
-        if ctx.author.voice:
-            channel = ctx.author.voice.channel
-            if ctx.voice_client is None:
-                vc = await channel.connect()
-                sound_path = self.user_sounds.get(ctx.author.id, self.default_sound)
-                if os.path.exists(sound_path):
-                    source = discord.FFmpegPCMAudio(sound_path)
-                    vc.play(source)
+    @app_commands.command(name="play", description="Şarkı çalar (indirip oynatır)")
+    async def slash_play(self, interaction: discord.Interaction, song: str):
+        await interaction.response.defer()
 
-                await ctx.send(f"🔊 **{channel.name}** kanalına bağlandım!")
+        voice_client = interaction.guild.voice_client
+        if not voice_client:
+            if interaction.user.voice:
+                channel = interaction.user.voice.channel
+                voice_client = await channel.connect()
             else:
-                await ctx.send("Ben zaten bir ses kanalındayım!")
-        else:
-            await ctx.send("Önce bir ses kanalına gir!")
+                await interaction.followup.send("\u00d6nce bir ses kanalına gir!")
+                return
 
-    @commands.command()
-    async def leave(self, ctx):
-        """Botu ses kanalından çıkarır ve kuyruğu temizler."""
-        if ctx.voice_client:
-            await ctx.voice_client.disconnect()
-            self.queue.clear()
-            await ctx.send("🔇 Kanaldan ayrıldım ve kuyruğu temizledim!")
-        else:
-            await ctx.send("Ben zaten bir ses kanalında değilim!")
+        self.last_channel_id[interaction.guild.id] = interaction.channel.id
 
-    @commands.command()
-    async def play(self, ctx, *, url_or_search):
-        """Tek şarkı çalma, playlist çalma, veya şarkı arama"""
-        if not ctx.voice_client:
-            await ctx.invoke(self.join)  # Bot bağlı değilse bağlan
+        temp_id = str(uuid.uuid4())
+        output_path = f"downloads/{temp_id}.%(ext)s"
+        final_path = f"downloads/{temp_id}.mp3"
 
-        # Playlist URL'si mi yoksa şarkı adı mı kontrol et
-        if "playlist" in url_or_search:  # Eğer playlist URL'si verilmişse
-            await self.play_playlist(ctx, url_or_search)
-            return
-        elif url_or_search.startswith("http"):  # Eğer URL verilmişse
-            url = url_or_search
-        else:  # Şarkı adı verilmişse
-            search_url = f"ytsearch:{url_or_search}"
-            ydl_opts = {
-                'format': 'bestaudio/best',  # Audio-only format
-                'quiet': True,
-                'noplaylist': True
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(search_url, download=False)
-                url = info['entries'][0]['url']  # İlk sonucu al
-                await ctx.send(f"🎶 **Şarkı Bulundu:** {info['entries'][0]['title']}")
-
-        # Şarkıyı çal
-        await self.start_playing(ctx, url)
-
-    async def play_playlist(self, ctx, url):
-        """YouTube playlist’ini çalar."""
-        ydl_opts = {
-            'format': 'bestaudio/best',  # Audio-only format
-            'quiet': True,
-            'extract_flat': True,  # Playlist'in sadece linklerini al
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            playlist = ydl.extract_info(url, download=False)
-            for entry in playlist['entries']:
-                await self.play(ctx, url=entry['url'])  # Her şarkıyı sırayla çal
-
-    async def start_playing(self, ctx, url):
         ydl_opts = {
             'format': 'bestaudio/best',
             'quiet': True,
-            'cookiefile': 'cookies.txt'
+            'noplaylist': True,
+            'default_search': 'ytsearch',
+            'outtmpl': output_path,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
         }
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            url2 = info['url']
-            title = info['title']
-
         try:
-            ffmpeg_options = {
-                'before_options': "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-                'options': '-vn'
-            }
-            source = discord.FFmpegPCMAudio(url2, **ffmpeg_options)
-            ctx.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(ctx), self.bot.loop))
-            await ctx.send(f"🎶 **Şimdi Çalıyor:** {title}")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(song, download=True)
+                title = info.get('title', 'Bilinmeyen Başlık')
+
+            if not os.path.exists(final_path):
+                await interaction.followup.send("❌ Şarkı indirilemedi.")
+                return
+
+            if voice_client.is_playing() or voice_client.is_paused():
+                self.queue.append((final_path, title))
+                await interaction.followup.send(f"**Sıraya eklendi:** {title}")
+            else:
+                await self.start_playing(interaction.guild, final_path, title)
+
         except Exception as e:
-            await ctx.send(f"🚨 **Şarkı başlatılamadı!** Hata: {str(e)}")
+            await interaction.followup.send(f"❌ Hata oluştu: {e}")
+            print(f"[play] YDL Hata: {e}")
 
-    async def play_next(self, ctx):
-        """Sıradaki şarkıyı çalar."""
-        if len(self.queue) > 0:
-            next_url, next_title = self.queue.pop(0)
-            await self.start_playing(ctx, next_url, next_title)
+    async def start_playing(self, guild, file_path, title):
+        voice_client = guild.voice_client
+        source = discord.FFmpegPCMAudio(file_path)
+
+        def after_playing(error):
+            self.previous_tracks.append((file_path, title))
+            if error:
+                print(f"FFmpeg Hata: {error}")
+            asyncio.run_coroutine_threadsafe(self.play_next(guild), self.bot.loop)
+
+        voice_client.play(source, after=after_playing)
+        self.currently_playing = (file_path, title)
+
+        channel = self.bot.get_channel(self.last_channel_id[guild.id])
+        if channel:
+            embed = discord.Embed(title="🎶 Şimdi Çalıyor:", description=f"**{title}**", color=discord.Color.green())
+            message = await channel.send(embed=embed)
+            for emoji in ["⏪", "⏸", "▶", "⏭", "⏹"]:
+                await message.add_reaction(emoji)
+            self.music_messages[message.id] = channel.id
+
+        self.reset_disconnect_timer(guild.id)
+
+    async def play_next(self, guild):
+        voice_client = guild.voice_client
+
+        if self.queue:
+            # Şu anki şarkıyı previous'a kaydet
+            if self.currently_playing:
+                self.previous_tracks.append(self.currently_playing)
+
+            next_file, next_title = self.queue.pop(0)
+            self.currently_playing = (next_file, next_title)
+            source = discord.FFmpegPCMAudio(next_file)
+
+            def after_playing(error):
+                if error:
+                    print(f"FFmpeg Hata: {error}")
+                try:
+                    os.remove(next_file)
+                except Exception as e:
+                    print(f"⚠️ Silinemedi: {e}")
+                asyncio.run_coroutine_threadsafe(self.play_next(guild), self.bot.loop)
+
+            voice_client.stop()
+            voice_client.play(source, after=after_playing)
+
+            channel = self.bot.get_channel(self.last_channel_id.get(guild.id))
+            if channel:
+                embed = discord.Embed(title="🎶 Şimdi Çalıyor:", description=f"**{next_title}**",
+                                      color=discord.Color.green())
+                await channel.send(embed=embed)
+
         else:
-            self.currently_playing = None  # Kuyruk boşaldıysa sıfırla
+            self.currently_playing = None
+            channel = self.bot.get_channel(self.last_channel_id.get(guild.id))
+            if channel:
+                await channel.send("🎵 **Kuyruktaki tüm şarkılar çalındı!**")
+            self.reset_disconnect_timer(guild.id)
 
-    @commands.command()
-    async def skip(self, ctx):
-        """Şu anki şarkıyı atlayıp sıradakini çalar."""
-        if ctx.voice_client.is_playing():
-            ctx.voice_client.stop()  # Şarkıyı durdur
-            await ctx.send("⏭ **Şarkı geçildi!**")
+    async def play_previous(self, guild):
+        voice_client = guild.voice_client
+
+        if self.previous_tracks:
+            file_path, title = self.previous_tracks.pop()
+            if os.path.exists(file_path):
+                if self.currently_playing:
+                    self.queue.insert(0, self.currently_playing)
+                self.currently_playing = (file_path, title)
+                source = discord.FFmpegPCMAudio(file_path)
+
+                def after_playing(error):
+                    if error:
+                        print(f"FFmpeg Hata: {error}")
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"⚠️ Silinemedi: {e}")
+                    asyncio.run_coroutine_threadsafe(self.play_next(guild), self.bot.loop)
+
+                voice_client.stop()
+                voice_client.play(source, after=after_playing)
+
+                channel = self.bot.get_channel(self.last_channel_id.get(guild.id))
+                if channel:
+                    embed = discord.Embed(title="🔁 Önceki Şarkı:", description=f"**{title}**",
+                                          color=discord.Color.blurple())
+                    await channel.send(embed=embed)
+            else:
+                channel = self.bot.get_channel(self.last_channel_id.get(guild.id))
+                if channel:
+                    await channel.send("⚠️ Önceki şarkının dosyası silinmiş.")
         else:
-            await ctx.send("Şu anda çalan bir şarkı yok!")
+            channel = self.bot.get_channel(self.last_channel_id.get(guild.id))
+            if channel:
+                await channel.send("⚠️ Önceki şarkı bilgisi yok.")
 
-    @commands.command()
-    async def pause(self, ctx):
-        """Şarkıyı duraklatır."""
-        if ctx.voice_client.is_playing():
-            ctx.voice_client.pause()
-            await ctx.send("⏸ **Şarkı duraklatıldı!**")
-        else:
-            await ctx.send("Şu anda çalan bir şarkı yok!")
+    def reset_disconnect_timer(self, guild_id):
+        if guild_id in self.disconnect_timer:
+            self.disconnect_timer[guild_id].cancel()
+        self.disconnect_timer[guild_id] = self.bot.loop.create_task(self.disconnect_after_afk(guild_id))
 
-    @commands.command()
-    async def resume(self, ctx):
-        """Duraklatılmış şarkıyı devam ettirir."""
-        if ctx.voice_client.is_paused():
-            ctx.voice_client.resume()
-            await ctx.send("▶ **Şarkı devam ediyor!**")
-        else:
-            await ctx.send("Duraklatılmış bir şarkı yok!")
+    async def disconnect_after_afk(self, guild_id):
+        await asyncio.sleep(180)
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            return
+        voice_client = guild.voice_client
+        if voice_client and not voice_client.is_playing():
+            await voice_client.disconnect()
+            print(f"🔌 {guild.name} sunucusundan 3 dakika sessizlik sonrası ayrıldı.")
+            await self.cleanup_downloads()
 
-    @commands.command()
-    async def clear(self, ctx):
-        """Kuyruğu temizler."""
-        self.queue.clear()
-        await ctx.send("🗑 **Müzik kuyruğu temizlendi!**")
-
-    @commands.command()
-    async def nowplaying(self, ctx):
-        """Şu an çalan şarkının bilgisini gösterir."""
-        if self.currently_playing:
-            await ctx.send(f"🎶 **Şu anda çalan şarkı:** {self.currently_playing}")
-        else:
-            await ctx.send("Şu anda çalan bir şarkı yok!")
-
-    @commands.command()
-    async def volume(self, ctx, volume: int):
-        if ctx.voice_client and ctx.voice_client.source:
-            ctx.voice_client.source = discord.PCMVolumeTransformer(ctx.voice_client.source, volume=volume / 100)
-            await ctx.send(f"🔊 **Ses seviyesi** {volume}% olarak ayarlandı!")
-        else:
-            await ctx.send("Ben bir ses kanalında değilim!")
-
-    @commands.command()
-    async def queue(self, ctx):
-        """Kuyruğun şu anki durumunu gösterir."""
-        if len(self.queue) > 0:
-            queue_list = "\n".join([f"{idx + 1}. {title}" for idx, (url, title) in enumerate(self.queue)])
-            await ctx.send(f"📋 **Şu anki kuyruk:**\n{queue_list}")
-        else:
-            await ctx.send("🛑 **Kuyruk boş!**")
-
-    @commands.command()
-    async def remove(self, ctx, index: int):
-        """Kuyruktan şarkı kaldırır."""
+    async def cleanup_downloads(self):
         try:
-            removed_song = self.queue.pop(index - 1)
-            await ctx.send(f"❌ **Kaldırıldı:** {removed_song[1]}")
-        except IndexError:
-            await ctx.send(f"❌ **Geçersiz numara**: Kuyrukta {len(self.queue)} şarkı bulunuyor!")
+            for filename in os.listdir("downloads"):
+                file_path = os.path.join("downloads", filename)
+                os.remove(file_path)
+            print("🧹 İndirilen tüm dosyalar temizlendi.")
+        except Exception as e:
+            print(f"⚠️ Temizlik sırasında hata oluştu: {e}")
 
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        if payload.user_id == self.bot.user.id:
+            return
 
-async def setup(bot):
-    await bot.add_cog(Music(bot))
+        message_id = payload.message_id
+        if message_id not in self.music_messages:
+            return
+
+        guild = self.bot.get_guild(payload.guild_id)
+        channel = guild.get_channel(self.music_messages[message_id])
+        message = await channel.fetch_message(message_id)
+        user = guild.get_member(payload.user_id)
+        voice_client = guild.voice_client
+
+        if not voice_client or not voice_client.is_connected():
+            await message.reply("❌ **Bot bir ses kanalında değil!**")
+            return
+
+        emoji = str(payload.emoji)
+
+        if emoji == "⏪":
+            await self.play_previous(guild)
+        elif emoji == "⏸":
+            if voice_client.is_playing():
+                voice_client.pause()
+                await message.reply("⏸ **Şarkı duraklatıldı!**")
+        elif emoji == "▶":
+            if voice_client.is_paused():
+                voice_client.resume()
+                await message.reply("▶ **Şarkı devam ediyor!**")
+        elif emoji == "⏭":
+            await self.play_next(guild)
+        elif emoji == "⏹":
+            voice_client.stop()
+            self.queue.clear()
+            await message.reply("⏹ **Şarkı durduruldu ve kuyruk temizlendi!**")
+
+        await message.remove_reaction(emoji, user)
