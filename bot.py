@@ -17,6 +17,7 @@ from commands.utility import cycle_status, STATUSES
 from commands.emsc_quake_notifier import EMSCQuakeNotifier
 from commands.voice_control import VoiceControl
 from commands.welcome_sound import WelcomeSound
+from commands.guesssong import setup as guess_song_setup
 from commands.help import Help
 
 # Ortam değişkenlerini yükle
@@ -43,6 +44,7 @@ async def setup(bot):
     await bot.add_cog(VoiceControl(bot))
     await bot.add_cog(Moderation(bot))
     await bot.add_cog(EzanNotifier(bot))
+    await guess_song_setup(bot)
 
 
 @bot.event
